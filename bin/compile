@@ -5,7 +5,7 @@ export_env_dir() {
     env_dir=$1
     whitelist_regex=${2:-''}
     blacklist_regex=${3:-'^(PATH|GIT_DIR|CPATH|CPPATH|LD_PRELOAD|LIBRARY_PATH)$'}
-    if [ -d "$env_dir" ]; then
+    if [[ -d "$env_dir" ]]; then
         for e in $(ls $env_dir); do
             echo "$e" | grep -E "$whitelist_regex" | grep -qvE "$blacklist_regex" &&
             export "$e=$(cat $env_dir/$e)"
@@ -28,21 +28,48 @@ ENV_DIR=$3
 
 export_env_dir ${ENV_DIR}
 
-if [ "${STACK}" != "cedar-14" ]; then
+if [[ "${STACK}" != "cedar-14" ]]; then
     echo "Stack ${STACK} not supported" && exit 1
 fi
 
-: ${DOXYGEN_VERSION:=1.8.11}
-: ${DOXYGEN_DOWNLOAD_LOCATION:=http://ftp.stack.nl/pub/users/dimitri/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz}
-: ${DOXYGEN:=$(readlink -f ${CACHE_DIR}/doxygen-${DOXYGEN_VERSION}/bin/doxygen)}
+DOXYGEN_VERSION=1.8.11
+DOXYGEN_DOWNLOAD_LOCATION=http://ftp.stack.nl/pub/users/dimitri/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz
+DOXYGEN=${CACHE_DIR}/doxygen-${DOXYGEN_VERSION}/bin/doxygen
 
 mkdir -p ${CACHE_DIR}
 
-if [ ! -x ${DOXYGEN} ]; then
-    echo "-----> Installing ${DOXYGEN_DOWNLOAD_LOCATION}"
+echo "-----> Setting up doxygen ${DOXYGEN_VERSION}"
+if [[ ! -x "${DOXYGEN}" ]]; then
+    echo "Installing ${DOXYGEN_DOWNLOAD_LOCATION}" | indent
     curl ${DOXYGEN_DOWNLOAD_LOCATION} -Ls | tar xz -C ${CACHE_DIR}
+else
+    echo "Found ${DOXYGEN} ($(file -b ${DOXYGEN}))" | indent
 fi
 
+DOXYGEN=$(readlink -f ${DOXYGEN})
+
 cd ${BUILD_DIR}
+
 echo "-----> Generating documentation with doxygen ${DOXYGEN_VERSION}"
 ( cat Doxyfile ; echo "PROJECT_NUMBER=${SOURCE_VERSION}" ) | ${DOXYGEN} - | indent
+
+echo "-----> Generating default configuration files (if needed)"
+if [[ ! -f "Procfile" ]]; then
+    if cat Doxyfile | grep -q "^OUTPUT_DIRECTORY"; then
+        OUT_DIR=`cat Doxyfile | grep "^OUTPUT_DIRECTORY" | grep -o "\".*\"" | tr -d \"`
+    else
+        OUT_DIR=.
+    fi
+
+    echo "web: vendor/bin/heroku-php-apache2 ${OUT_DIR}/html/" > Procfile
+
+    echo "[${BUILD_DIR}/Procfile]" | indent
+    cat Procfile | indent
+fi
+
+if [[ ! -f "composer.json" ]]; then
+    touch composer.json
+
+    echo "[${BUILD_DIR}/composer.json]" | indent
+    cat composer.json | indent
+fi
