@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# bin/release BUILD_DIR
+
+BUILD_DIR=$1
+
+if cat ${BUILD_DIR}/Doxyfile | grep -q "^OUTPUT_DIRECTORY"
+then
+    OUT_DIR=`cat ${BUILD_DIR}/Doxyfile | grep "^OUTPUT_DIRECTORY" | grep -o "\".*\"" | tr -d \"`
+else
+    OUT_DIR=.
+fi
+
+cat << EOF
+---
+addons: []
+default_process_types:
+  web: vendor/bin/heroku-php-apache2 "${OUT_DIR}/html/"
+EOF

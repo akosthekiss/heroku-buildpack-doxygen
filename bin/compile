@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# bin/compile BUILD_DIR CACHE_DIR ENV_DIR
+
+export_env_dir() {
+    env_dir=$1
+    whitelist_regex=${2:-''}
+    blacklist_regex=${3:-'^(PATH|GIT_DIR|CPATH|CPPATH|LD_PRELOAD|LIBRARY_PATH)$'}
+    if [ -d "$env_dir" ]; then
+        for e in $(ls $env_dir); do
+            echo "$e" | grep -E "$whitelist_regex" | grep -qvE "$blacklist_regex" &&
+            export "$e=$(cat $env_dir/$e)"
+            :
+        done
+    fi
+}
+
+indent() {
+    sed -u 's/^/       /'
+}
+
+
+# fail fast
+set -e
+
+BUILD_DIR=$1
+CACHE_DIR=$2
+ENV_DIR=$3
+
+export_env_dir ${ENV_DIR}
+
+if [ "${STACK}" != "cedar-14" ]; then
+    echo "Stack ${STACK} not supported" && exit 1
+fi
+
+: ${DOXYGEN_VERSION:=1.8.11}
+: ${DOXYGEN_DOWNLOAD_LOCATION:=http://ftp.stack.nl/pub/users/dimitri/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz}
+: ${DOXYGEN:=$(readlink -f ${CACHE_DIR}/doxygen-${DOXYGEN_VERSION}/bin/doxygen)}
+
+mkdir -p ${CACHE_DIR}
+
+if [ ! -x ${DOXYGEN} ]; then
+    echo "-----> Installing ${DOXYGEN_DOWNLOAD_LOCATION}"
+    curl ${DOXYGEN_DOWNLOAD_LOCATION} -Ls | tar xz -C ${CACHE_DIR}
+fi
+
+cd ${BUILD_DIR}
+echo "-----> Generating documentation with doxygen ${DOXYGEN_VERSION}"
+( cat Doxyfile ; echo "PROJECT_NUMBER=${SOURCE_VERSION}" ) | ${DOXYGEN} - | indent
