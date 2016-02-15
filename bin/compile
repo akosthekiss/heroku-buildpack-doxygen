@@ -68,7 +68,7 @@ if [[ ! -f "Procfile" ]]; then
 fi
 
 if [[ ! -f "composer.json" ]]; then
-    touch composer.json
+    echo "{}" > composer.json
 
     echo "[${BUILD_DIR}/composer.json]" | indent
     cat composer.json | indent
